@@ -1,0 +1,317 @@
+import numpy as np
+import pandas as pd
+import os
+
+os.getcwd()
+
+os.chdir("C:\\Users\\Gagandeep\\Documents")
+
+os.getcwd()
+
+cc_train=pd.read_csv("Consumer_Complaints_train.csv")
+cc_test=pd.read_csv("Consumer_Complaints_test_share.csv")
+
+cc_train.columns
+
+
+cc_test.columns
+
+cc_train.shape
+
+cc_test.shape
+
+cc_train.describe
+
+cc_test["Consumer disputed?"]=np.nan
+
+cc_train["Data"]="train"
+cc_test["Data"]="test"
+
+cc_test.shape
+
+cc_train.shape
+
+cc_all=pd.concat([cc_train,cc_test],axis=0)
+
+cc_all.shape
+
+cc_all.dtypes
+
+cc_all.value_counts()
+
+l=list(zip(cc_all.columns,cc_all.dtypes,cc_all.nunique()))
+print(l)
+
+
+Date Diff= Date sent to Company-Date Recvd
+Product=Dummies
+Sub-product
+Zip Code to be removed
+Complaints ID to be removed.
+
+#for col in ['Date received','Date sent to company']:
+ #   cd_train[col]=pd.to_datetime(cd_train[col],infer_datetime_format=True)
+  #  cd_test[col]=pd.to_datetime(cd_test[col],infer_datetime_format=True)
+cc_train["Date received"]=pd.to_datetime(cc_train["Date received"])
+cc_test["Date received"]=pd.to_datetime(cc_test["Date received"])
+cc_train["Date sent to company"]=pd.to_datetime(cc_train["Date sent to company"])
+cc_test["Date sent to company"]=pd.to_datetime(cc_test["Date sent to company"])
+
+cc_all["Date received"]=pd.to_datetime(cc_all["Date received"])
+cc_all["Date sent to company"]=pd.to_datetime(cc_all["Date sent to company"])
+
+cc_all["days_diff"]=cc_all["Date sent to company"]-cc_all["Date received"]
+
+cc_all.drop(["Date received","Date sent to company"],axis=1)
+
+for col in cc_all.columns:
+    print(col,cc_all[col].nunique())
+    
+
+list=['Sub-product','Sub-issue','Consumer complaint narrative','Company public response','Tags',
+            'Consumer consent provided?','Company response to consumer']
+for col in list:
+        varname=col.replace("-","_").replace(" ","_").replace("?","") + "_isNaN"
+        cc_all[varname]=np.where(cc_all[col].isnull(),1,0)
+        cc_all.drop([col],1,inplace=True)        
+       
+   
+
+
+cc_all.columns
+
+cc_all.head
+
+#for col in cc_all.columns:
+#    s=cc_all[col].isnull().sum()[wrong command-giving value of s=0)
+cc_all.isnull().sum()
+
+cc_all.drop(["ZIP code"],axis=1,inplace=True)
+cc_all.drop(["Company"],axis=1,inplace=True)
+
+cc_all.columns
+
+cc_all["Consumer disputed?"]=np.where(cc_all["Consumer disputed?"]=="Yes",1,0)
+
+
+
+
+cc_all["Consumer disputed?"].value_counts()
+
+k=cc_all['Issue'].value_counts()
+k
+for val in k.axes[0][0:10]:
+    varname='Issue_'+val.replace(',','_').replace(' ','_')
+    cc_all[varname]=np.where(cc_all["Issue"]==val,1,0)
+    del cc_all["Issue"]
+
+for col in cc_all.select_dtypes(["object"]).columns:
+    print(col,":",cc_all[col].nunique())
+
+
+
+k=cc_all["State"].value_counts()
+k
+for val in k.axes[0][0:15]:
+    varname="State"+val.replace(",","_").replace(" ","_")
+    cc_all[varname]=np.where(cc_all["State"]==val,1,0)
+del cc_all["State"]
+
+k.axes[0][0:15]
+
+for col in ['Product','Submitted via','Timely response?']:
+    
+    temp=pd.get_dummies(cc_all[col],prefix=col,drop_first=True)
+    cc_all=pd.concat([temp,cc_all],1)
+    cc_all.drop([col],1,inplace=True)
+    
+
+cc_all.dtypes
+
+cc_all.drop(["Date sent to company","Date received","days_diff"],axis=1,inplace=True)
+
+cc_all.dtypes
+
+cc_train=cc_all[cc_all["Data"]=="train"]
+cc_test=cc_all[cc_all["Data"]=="test"]
+
+from sklearn.model_selection import train_test_split
+t1,t2=train_test_split(cc_train,test_size=0.20,random_state=42)
+
+X_train=t1.drop(["Consumer disputed?","Complaint ID"],1)
+y_train=t1["Consumer disputed?"]
+X1_train=t2.drop(["Consumer disputed?","Complaint ID"],1)
+y1_train=t2["Consumer disputed?"]
+
+X_train.drop(["Data"],1,inplace=True)
+X1_train.drop(["Data"],1,inplace=True)
+
+
+X_train.dtypes
+
+X_train.shape
+
+X1_train.shape
+
+from sklearn.ensemble import RandomForestClassifier
+rnd_clf=RandomForestClassifier()
+
+
+
+param_dist={"n_estimators":[100,200,300,500,700,1000],"max_features":[5,10,20,25,30,35],"bootstrap":[True,False],
+            "class_weight":[None,"balanced"],"criterion":["entropy","gini"],"max_depth":[None,5,10,15,20,30,50,70],
+            "min_samples_leaf":[1,2,5,10,15,20],"min_samples_split":[2,5,10,15,20]}
+
+from sklearn.model_selection import RandomizedSearchCV
+n_iter_search=10
+random_search=RandomizedSearchCV(rnd_clf,param_distributions=param_dist, n_iter=n_iter_search,scoring="roc_auc",
+                                 cv=5,n_jobs=-1,verbose=False)
+
+random_search.fit(X_train,y_train)
+
+random_search.best_estimator_
+
+def report(results,n_top=3):
+    for i in range(1,n_top+1):
+        candidate=np.flatnonzero(results["rank_test_score"]==i)[0]
+        print("Model with Rank:{0}".format(i))
+        print("Mean Validation Score:{0:.5f}(std:{1:.5f})".format(results["mean_test_score"][candidate],results["std_test_score"][candidate]))
+        print("Parameters:{0}".format(results["params"][candidate]))
+        print("")
+
+report(random_search.cv_results_,5)
+
+rf=RandomForestClassifier(bootstrap=False, ccp_alpha=0.0, class_weight=None,
+                       criterion='gini', max_depth=15, max_features=10,
+                       max_leaf_nodes=None, max_samples=None,
+                       min_impurity_decrease=0.0, min_impurity_split=None,
+                       min_samples_leaf=15, min_samples_split=15,
+                       min_weight_fraction_leaf=0.0, n_estimators=500,
+                       n_jobs=None, oob_score=False, random_state=None,
+                       verbose=0, warm_start=False)
+
+rf.fit(X_train,y_train)
+
+train2_score=rf.predict(X1_train)
+
+from sklearn.metrics import roc_auc_score
+roc_auc_score(y1_train,train2_score)
+
+cc_train1=pd.read_csv("Consumer_Complaints_train.csv")
+cc_test1=pd.read_csv("Consumer_Complaints_test_share.csv")
+
+cc_target=cc_train1["Consumer disputed?"]
+
+
+cc_train=cc_train.drop(["Consumer disputed?","Complaint ID","Data"],1)
+
+
+
+rf.fit(cc_train,cc_target)
+
+cc_test.columns
+
+cc_test.drop(["Data","Complaint ID"],axis=1,inplace=True)
+
+rf.predict(cc_test)
+
+
+
+cc_test.dtypes
+
+X_train.columns
+
+cc_test.columns
+
+cc_test1=cc_test
+
+cc_test.drop(["Consumer disputed?","Complaint ID"],axis=1,inplace=True)
+
+len(cc_test.columns)
+
+y_pred=rnd_clf.predict(cc_test)
+
+submission=np.where(submission==1,"Yes","No")
+
+submission=pd.DataFrame({'Consumer disputed?':y_pred})
+
+submission.to_csv('Gagandeep1_Python_P1_part2.csv',index=False)
+
+
+
+
+
+
+cc_test.drop(["Date received"],1,inplace=True)
+cc_test.drop(["Date sent to company"],1,inplace=True)
+
+cc_test.dtypes
+
+cc_test.drop(["days_diff"],1,inplace=True)
+
+cc_test.columns
+
+cc_test.drop(["Consumer disputed?"],1,inplace=True)
+cc_test.drop(["Complaint ID"],1,inplace=True)
+
+cc_test.columns
+
+
+X_train.columns
+
+y_pred=voting_clf.predict(cc_test)
+
+y_pred.nunique
+
+len(prediction)
+
+prediction=np.where(y_pred==1,"Yes","No")
+
+
+cc_preds=np.where(y_pred==1,"Yes","No")
+
+cc_preds.head
+
+cc_test1=pd.read_csv("Consumer_Complaints_test_share.csv")
+
+cc_test1["Complaint ID"].head
+
+Complaint_ID=cc_test1["Complaint ID"]
+Complaint_ID.head
+
+
+                       
+
+prediction.head
+
+submission=pd.DataFrame(list(zip(cc_test1['Complaint ID'],list(prediction))),
+                       columns=['Complaint ID','Consumer disputed?'])
+
+prediction.to_csv('Gagandeep_Kaur_Python_P1_part2.csv',index=False)
+
+prediction=list[prediction]
+
+prediction1=pd.DataFrame(list[prediction])
+
+prediction1=prediction.astype("int")
+
+prediction1=prediction.to_numeric()
+
+prediction.tolist()
+
+len(prediction)
+
+
+
+
+prediction1=np.array(prediction)
+
+
+
+
+
+submission=pd.DataFrame({'Complaint ID':cc_test1['Complaint ID'],'Consumer disputed?':prediction})
+
+
+submission.to_csv("Gagandeep_Kaur_Python_P1_Par2.csv")
+
